@@ -21,9 +21,10 @@ $(TWITTER_AUTH_FILE):
 	$(error $(NEWLINE)Twitter Credentials file $(YELLOW)$(TWITTER_AUTH_FILE)$(RESET) is missing.$(NEWLINE)Run $(GREEN)'make auth'$(RESET).$(NEWLINE)Use $(YELLOW)https://developer.twitter.com/en/apps$(RESET) to find your Twitter app credentials)
 
 # We keep the latest SQLite database in a compressed .gz file for storage in Git
+# You can run 'make content.sqlite' to uncompress SQLite database if the .gz version is newer
 $(TTS_CONTENT_DB_FILE): $(TTS_CONTENT_DB_COMPRESSED_FILE)
 	echo "Unzipping $(TTS_CONTENT_DB_FILE) from $(TTS_CONTENT_DB_COMPRESSED_FILE)"
-	gunzip $(TTS_CONTENT_DB_COMPRESSED_FILE)
+	gunzip --keep $(TTS_CONTENT_DB_COMPRESSED_FILE)
 
 $(TTS_CRITERIA_DB_FILE): criteria/influencers.csv criteria/search-queries.csv
 	echo "Recreating $(TTS_CRITERIA_DB_FILE) using criteria/*"
@@ -37,7 +38,7 @@ $(DOC_SCHEMA_CRITERIA_HOME): $(TTS_CRITERIA_DB_FILE)
 	java -jar /usr/local/bin/schemaspy.jar -t sqlite-xerial -db $(TTS_CRITERIA_DB_FILE) -cat % -schemas "Criteria" -sso -dp /usr/local/bin/sqlite-jdbc.jar -o $(DOC_SCHEMA_CRITERIA_HOME)
 
 .ONESHELL:
-## Backup the content and criteria databases
+## Backup the content and criteria databases to $(BACKUPS_HOME)/<date>
 backup:
 	export BACKUP_PATH=$(BACKUPS_HOME)/`date +%Y-%m-%d_%H-%M-%S`
 	mkdir -p $$BACKUP_PATH
@@ -57,11 +58,11 @@ search: $(TWITTER_AUTH_FILE) backup $(TTS_CONTENT_DB_FILE) $(TTS_CRITERIA_DB_FIL
 	sqlite3 $(TTS_CRITERIA_DB_FILE) "SELECT query FROM search_queries" | while read query
 	do
 		echo "Searching Twitter for '$$query' using twitter-to-sqlite, storing in $(TTS_CONTENT_DB_FILE)"
-		echo "Simulate searching... | - | \ / "
 		twitter-to-sqlite search $(TTS_CONTENT_DB_FILE) "$$query" --auth $(TWITTER_AUTH_FILE) --since
 		sleep 1s
 	done
 	echo "Compressing $(TTS_CONTENT_DB_FILE): $(TTS_CONTENT_DB_COMPRESSED_FILE)"
+	sqlite-utils optimize $(TTS_CONTENT_DB_FILE)
 	gzip --force --keep $(TTS_CONTENT_DB_FILE)
 
 ## Serve sqlite files through datasette
@@ -70,8 +71,8 @@ datasette:
 
 ## Reduce the size of SQLite databases by running OPTIMIZE for full text search tables, then VACUUM
 compact: backup $(TTS_CONTENT_DB_FILE)
-	sqlite-utils optimize $(TTS_CONTENT_DB_FILE)
 	echo "Compressing $(TTS_CONTENT_DB_FILE): $(TTS_CONTENT_DB_COMPRESSED_FILE)"
+	sqlite-utils optimize $(TTS_CONTENT_DB_FILE)
 	gzip --force --keep $(TTS_CONTENT_DB_FILE)
 
 ## Create schema documentation for all the databases in this package
