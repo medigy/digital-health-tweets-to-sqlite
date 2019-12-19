@@ -1,9 +1,11 @@
-SHELL := /bin/bash
-MAKEFLAGS := silent
-
-# DCC_HOME is the devcontainer-common directory
-DCC_HOME ?= /etc/devcontainer-common
-MAKE_UTILS_HOME ?= $(DCC_HOME)/make
+# Use common Makefile from https://github.com/shah/devcontainer-common/make
+# DCC_HOME is the devcontainer-common directory, usually installed within a .devcontainer
+DCC_MAKE_HOME ?= /etc/devcontainer-common/make
+ifneq ("$(wildcard $(DCC_MAKE_HOME)/common.mk)","")
+include $(DCC_MAKE_HOME)/common.mk
+else
+$(error common.mk was not found in $(DCC_MAKE_HOME), unable to proceed)
+endif
 
 TWITTER_AUTH_FILE := ./twitter-credentials.json
 
@@ -37,7 +39,6 @@ $(DOC_SCHEMA_CONTENT_HOME): $(TTS_CONTENT_DB_FILE)
 $(DOC_SCHEMA_CRITERIA_HOME): $(TTS_CRITERIA_DB_FILE)
 	java -jar /usr/local/bin/schemaspy.jar -t sqlite-xerial -db $(TTS_CRITERIA_DB_FILE) -cat % -schemas "Criteria" -sso -dp /usr/local/bin/sqlite-jdbc.jar -o $(DOC_SCHEMA_CRITERIA_HOME)
 
-.ONESHELL:
 ## Backup the content and criteria databases to $(BACKUPS_HOME)/<date>
 backup:
 	export BACKUP_PATH=$(BACKUPS_HOME)/`date +%Y-%m-%d_%H-%M-%S`
@@ -52,7 +53,6 @@ criteria: $(TTS_CRITERIA_DB_FILE)
 auth:
 	twitter-to-sqlite auth --auth $(TWITTER_AUTH_FILE)
 
-.ONESHELL:
 ## Using queries in the criteria database, run searches and populate Tweets in the content database
 search: $(TWITTER_AUTH_FILE) backup $(TTS_CONTENT_DB_FILE) $(TTS_CRITERIA_DB_FILE)
 	sqlite3 $(TTS_CRITERIA_DB_FILE) "SELECT query FROM search_queries" | while read query
@@ -82,9 +82,3 @@ schema-doc: criteria $(DOC_SCHEMA_CONTENT_HOME) $(DOC_SCHEMA_CRITERIA_HOME)
 clean:
 	rm -f $(TTS_CRITERIA_DB_FILE)
 	rm -rf $(DOC_SCHEMA_HOME)
-
-ifneq ("$(wildcard $(MAKE_UTILS_HOME)/common.mk)","")
-include $(MAKE_UTILS_HOME)/common.mk
-else
-$(info [WARN] common.mk was not found in $(MAKE_UTILS_HOME), missing some useful targets and utilities)
-endif
