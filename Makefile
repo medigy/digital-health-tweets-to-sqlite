@@ -73,7 +73,7 @@ datasette:
 compact: backup $(TTS_CONTENT_DB_FILE)
 	echo "Compressing $(TTS_CONTENT_DB_FILE): $(TTS_CONTENT_DB_COMPRESSED_FILE)"
 	sqlite-utils optimize $(TTS_CONTENT_DB_FILE)
-	gzip --force --keep $(TTS_CONTENT_DB_FILE)
+	gzip --force --keep -9 $(TTS_CONTENT_DB_FILE)
 
 ## Create schema documentation for all the databases in this package
 schema-doc: criteria $(DOC_SCHEMA_CONTENT_HOME) $(DOC_SCHEMA_CRITERIA_HOME)
